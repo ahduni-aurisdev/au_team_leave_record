@@ -58,6 +58,15 @@ c:\zoho\au_team_leave_record/
 - **Dynamic User Context**: The widget now dynamically fetches the logged-in user's ID to retrieve relevant subordinate leaves.
 
 ## How to upload .zip as a WebTab in Zoho People
-1. Run zet validate in command line terminal to validate the widget.
-2. Run zet pack in command line terminal, this will create a .zip file in the dist/ folder.
+1. Run  
+   ```bash
+   zet validate
+   ```
+   in command line terminal to validate the widget.
+2. Run  
+   ```bash
+   zet pack
+   ``` 
+   in command line terminal, this will create a .zip file in the dist/ folder.
 3. Upload the .zip file in Zoho People WebTab to upload the widget.
+
