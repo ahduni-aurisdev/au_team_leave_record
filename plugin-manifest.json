@@ -1,0 +1,46 @@
+{
+  "locale": [
+    "en"
+  ],
+  "service": "PEOPLE",
+  "whiteListedDomains": [],
+  "modules": {
+    "widgets": [
+      {
+        "location": "people.home",
+        "name": "Team Leaves update",
+        "url": "/app/widget.html",
+        "logo": ""
+      }
+    ]
+  },
+   "api-scopes": [
+    {
+      "scope": "ZOHOPEOPLE.leave.READ",
+      "description": "To fetch subordinate leave records"
+    },
+    {
+      "scope": "ZOHOPEOPLE.leave.ALL",
+      "description": "To update subordinate leave records"
+    }
+  ],
+  "config": [],
+  "connectors": [],
+  "cspDomains": {
+    "connect-src": [
+      "https://*.zoho.in",
+      "https://*.zohostatic.com",
+      "https://127.0.0.1:5000",
+      "https://cdn.jsdelivr.net",
+      "https://cdnjs.cloudflare.com/"
+      
+    ],
+    "script-src": [
+      "https://static.zohocdn.com",
+      "https://cdn.jsdelivr.net"
+    ],
+    "style-src": [
+      "https://cdn.jsdelivr.net"
+    ]
+  }
+}

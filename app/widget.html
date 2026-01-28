@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Team Pending Action - Ahmedabad University</title>
+    <script src="https://static.zohocdn.com/zp5/widgets/zpwidgetsdk.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    
+    <style>
+        :root { 
+            --au-maroon: #800000; 
+            --au-gold: #D4AF37;
+            --au-bg: #fdfaf5;
+            --btn-blue: #007bff;
+            --btn-red: #f87171;
+        }
+        
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f1ea; margin-top: 70px; padding: 0px; }
+        .card { background: white; border-top: 5px solid var(--au-maroon); box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 25px; max-width: 1200px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--au-gold); padding-bottom: 15px; margin-bottom: 20px; }
+        .header h2 { margin: 0; color: var(--au-maroon); font-size: 1.4rem; }
+        
+        .btn { padding: 8px 16px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; color: white; transition: 0.3s; }
+        .btn-approve { background: var(--btn-blue); }
+        .btn-reject { background: var(--btn-red); }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { background: var(--au-maroon); color: white; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; border: 1px solid #600000; }
+        td { padding: 12px; border: 1px solid #e2d8c4; font-size: 13px; }
+        
+        /* Highlighted Employee Name Column style from AU Summary theme */
+        .emp-name-col { font-weight: 600; color: var(--au-maroon); border-left: 3px solid var(--au-gold); background: var(--au-bg); }
+        
+        .action-link { color: var(--btn-blue); text-decoration: none; font-weight: bold; cursor: pointer; }
+
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); }
+        .modal-content { background: white; margin: 15% auto; padding: 25px; width: 400px; border-top: 5px solid var(--au-gold); }
+        textarea { width: 100%; height: 100px; padding: 10px; margin: 15px 0; border: 1px solid #e2d8c4; resize: none; }
+        
+        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); z-index: 2000; display: none; align-items: center; justify-content: center; flex-direction: column; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--au-maroon); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <p style="color:var(--au-maroon); font-weight:bold; margin-top:10px;">Processing University Records...</p>
+    </div>
+
+    <div class="card">
+        <div class="header">
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-approve" onclick="bulkAction('approve')">Approve All Selected</button>
+                <button class="btn btn-reject" onclick="bulkAction('reject')">Reject All Selected</button>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 30px;"><input type="checkbox" id="masterCheck" onclick="toggleChecks(this)"></th>
+                    <th>Employee Name</th>
+                    <th>Type of Leave</th>
+                    <th>Date of Application</th>
+                    <th>Leave Duration</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="pending-body"></tbody>
+        </table>
+    </div>
+
+    <div id="patchModal" class="modal">
+        <div class="modal-content">
+            <h3 style="color:var(--au-maroon); margin:0;">Reason for Cancellation</h3>
+            <textarea id="reasonText" placeholder="Mandatory reason for cancellation..."></textarea>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn" style="background:#888;" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-reject" id="finalRejectBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pendingRecords = [];
+        let activeTarget = null;
+
+        window.onload = function() {
+            ZOHO.embeddedApp.init().then(() => { fetchPending(); });
+        };
+
+        function fetchPending() {
+            toggleLoader(true);
+            
+            // Calculate date range: -30 days to +60 days
+            const today = new Date();
+            const fromDate = new Date();
+            fromDate.setDate(today.getDate() - 30);
+            const toDate = new Date();
+            toDate.setDate(today.getDate() + 60);
+
+            function formatDate(d) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                return day + '/' + month + '/' + d.getFullYear();
+            }
+            const from = formatDate(fromDate);
+            const to = formatDate(toDate);
+
+            ZOHO.People.API.invokeUrl({
+                url: "https://people.zoho.in/people/api/v3/leave-tracker/leaves",
+                method: "GET",
+                connectiondetails: "zoho_people_connection",
+                apiParams: { 
+                    from_date: from, 
+                    to_date: to, 
+                    data_select: "SUBORDINATES",
+                    approval_status: "PENDING"
+                }
+            }).then(function(response) {
+                const string = JSON.parse(response);
+                console.log("Raw Response:", string.content);
+                const safeJson = string.content
+                .replace(/"leave_id":(\d+)/g, '"leave_id":"$1"')
+                .replace(/"zoho_id":(\d+)/g, '"zoho_id":"$1"')
+                .replace(/"id":(\d{16,})/g, '"id":"$1"');
+                const res = JSON.parse(safeJson);
+                
+                if (res.status === "success" && Array.isArray(res.data)) {
+                    pendingRecords = res.data;
+                    console.log("Filtered Pending Records:", pendingRecords);
+                    renderTable();
+                } else if (res.status === "success" && !res.data) {
+                    // Handle case where success but no data (empty list)
+                    pendingRecords = [];
+                    renderTable();
+                }
+                toggleLoader(false);
+            }).catch(function(err) {
+                console.error("Fetch Error:", err);
+                toggleLoader(false);
+            });
+        }
+            
+
+        function renderTable() {
+            const tbody = document.getElementById('pending-body');
+            tbody.innerHTML = pendingRecords.map((item) => `
+                <tr>
+                    <td><input type="checkbox" class="row-check" value="${item.leave_id}"></td>
+                    <td class="emp-name-col">${item.employee?.name}</td>
+                    <td>${item.leave_type?.name}</td>
+                    <td>${item.date_of_request || '-'}</td>
+                    <td>${item.from_date} to ${item.to_date}</td>
+                    <td>${item.Reason || 'No reason specified'}</td>
+                    <td style="display:flex; gap:5px;">
+                        <input type="hidden" id="emp-id-${item.leave_id}" value="${item.employee?.zoho_id}">
+                        <input type="hidden" id="unit-id-${item.leave_id}" value="${item.unit}">
+                        <input type="hidden" id="leave-type-id-${item.leave_id}" value="${item.leave_type?.id}">
+                        <input type="hidden" id="from-date-${item.leave_id}" value="${item.from_date}">
+                        <input type="hidden" id="to-date-${item.leave_id}" value="${item.to_date}">
+                        <button class="btn btn-approve" style="padding:4px 8px; font-size:11px;" onclick="performAction('${item.leave_id}', 'approve')">Approve</button>
+                        <button class="btn btn-reject" style="padding:4px 8px; font-size:11px;" onclick="openRejectModal('${item.leave_id}')">Reject</button>
+                    </td>
+                </tr>
+            `).join('') || `<tr><td colspan="7" style="text-align:center; padding:20px;">No pending records to display.</td></tr>`;
+        }
+
+        function performAction(ids, action, reason = "") {
+            toggleLoader(true);
+            const idList = Array.isArray(ids) ? ids : [ids];
+            const promises = idList.map(id => {
+                const isApprove = action === 'approve';
+                
+                let params = {};
+                if (isApprove) {
+                    params = {
+                        "approval_status": "APPROVED",
+                        "employee_zoho_id": document.getElementById('emp-id-' + id)?.value,
+                        "leave_type_id": document.getElementById('leave-type-id-' + id)?.value,
+                        "from_date": document.getElementById('from-date-' + id)?.value,
+                        "to_date": document.getElementById('to-date-' + id)?.value,
+                        "unit": document.getElementById('unit-id-' + id)?.value
+                    };
+                } else {
+                    params = { "reason": reason };
+                }
+
+                ZOHO.People.API.invokeUrl({
+                    url: `https://people.zoho.in/people/api/v3/leave-tracker/leaves/${id}`,
+                    method: isApprove ? "PUT" : "PATCH", 
+                    connectiondetails: "zoho_people_connection",
+                    apiParams: params
+                });
+            });
+
+            Promise.all(promises).then((responses) => {
+                let hasError = false;
+                responses.forEach(r => {
+                    try {
+                        const status = responses.statusCode;
+                        if (status !== 200) {
+                            hasError = true;
+                            console.error("API 1 Error Response:", responses);
+                        }else{
+                            const res = JSON.parse(responses);
+                            if ('error' in res) {
+                                hasError = true;
+                                console.error("API Error Response:", res);
+                            }else{
+                                console.log("API Success Response:", res);
+                            }      
+                        } 
+                    } catch(e)
+                     { console.error("Response parse error:", e); }
+                });
+
+                if (hasError) {
+                    toastr.error("One or more actions failed. Please check the console.");
+                    toggleLoader(false);
+                } else {
+                    toastr.success(`Action successfully processed.`);
+                    fetchPending();
+                }
+            }).catch((err) => {
+                console.error("Action execution error:", err);
+                toastr.error("The requested action could not be completed.");
+                toggleLoader(false);
+            });
+        }
+
+        function bulkAction(type) {
+            const selected = Array.from(document.querySelectorAll('.row-check:checked')).map(c => c.value);
+            if (selected.length === 0) return toastr.warning("Please select one or more records.");
+            if (type === 'approve') {
+                if (confirm("Approve all selected records?")) performAction(selected, 'approve');
+            } else { openRejectModal(selected); }
+        }
+
+        function openRejectModal(id) {
+            activeTarget = id;
+            document.getElementById('patchModal').style.display = 'block';
+            document.getElementById('finalRejectBtn').onclick = function() {
+                const reason = document.getElementById('reasonText').value;
+                if (!reason) return toastr.error("A reason for cancellation is mandatory.");
+                performAction(activeTarget, 'reject', reason);
+                closeModal();
+            };
+        }
+
+        function closeModal() { document.getElementById('patchModal').style.display = 'none'; document.getElementById('reasonText').value = ""; }
+        function toggleChecks(m) { document.querySelectorAll('.row-check').forEach(c => c.checked = m.checked); }
+        function toggleLoader(s) { document.getElementById('loader').style.display = s ? 'flex' : 'none'; }
+    </script>
+</body>
+</html>
