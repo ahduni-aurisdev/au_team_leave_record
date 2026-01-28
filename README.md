@@ -1,6 +1,6 @@
 # AU Team Leave Record Widget
 
-This is a custom Zoho People widget designed for **Ahmedabad University** to manage team leave approvals in Zoho People. It provides a streamlined interface for managers to view, approve, and reject pending leave requests from their subordinates.
+This is a custom Zoho People webtab designed for **Ahmedabad University** to manage team leave approvals in Zoho People. It provides a streamlined interface for managers to view, approve, and reject pending leave requests from their subordinates.
 
 ## Features
 
